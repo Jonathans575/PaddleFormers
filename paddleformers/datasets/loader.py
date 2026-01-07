@@ -16,6 +16,7 @@ from typing import Any, Dict
 
 from .DPODataset import DPODataSet
 from .SFTDataset import Sequence, SFTDataSet
+from .sampler.mixed_modal_dataset import MixExampleSetJson
 
 
 def create_dataset(**dataset_config: Dict[str, Any]):
@@ -31,6 +32,11 @@ def create_dataset(**dataset_config: Dict[str, Any]):
     """
     if dataset_config["stage"].lower() == "dpo":
         train_dataset = DPODataSet(**dataset_config)
+    elif dataset_config["text_dataset_path"]:
+        vldataset = SFTDataSet(**dataset_config)
+        # 需要将train_dataset_path替换为text_dataset_path
+        textdataset = SFTDataSet(**dataset_config)
+        train_dataset = MixExampleSetJson(vldataset, textdataset, dataset_config["lm_weights"], dataset_config["mm_weights"])
     else:
         train_dataset = SFTDataSet(**dataset_config)
 

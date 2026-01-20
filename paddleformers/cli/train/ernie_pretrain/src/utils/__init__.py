@@ -4,6 +4,12 @@
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 #
+#     http://www.apache.org/licenses/LICENSE-2.0# Copyright (c) 2024 PaddlePaddle Authors. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
 #     http://www.apache.org/licenses/LICENSE-2.0
 #
 # Unless required by applicable law or agreed to in writing, software
@@ -12,6 +18,43 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .logging import logger, setup_logger_output_file
+import sys
+from typing import TYPE_CHECKING
 
-__all__ = ["logger", "setup_logger_output_file"]
+from ..utils.lazy_import import _LazyModule
+
+import_structure = {
+    "logging": [
+        "setup_logger_output_file",
+    ],
+    "misc": [
+        "SmoothedValue",
+        "TrainingLogs",
+    ],
+    "seed_utils": [
+        "set_seed",
+    ],
+    "training_utils": [
+        "reset_per_device_batch_size",
+    ],
+}
+
+if TYPE_CHECKING:
+    from .logging import *
+    from .misc import *
+    from .seed_utils import *
+    from .training_utils import *
+else:
+    sys.modules[__name__] = _LazyModule(
+        __name__,
+        globals()["__file__"],
+        import_structure,
+        module_spec=__spec__,
+    )
+
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.

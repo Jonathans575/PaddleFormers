@@ -21,7 +21,7 @@
 import sys
 from typing import TYPE_CHECKING
 
-from ..utils.lazy_import import _LazyModule
+from ....utils.lazy_import import _LazyModule
 
 import_structure = {
     "models.ernie.configuration": [
@@ -265,7 +265,7 @@ import_structure = {
     ],
     "model_config": [
         "ModelConfig",
-    ]
+    ],
     "workflow": [
         "load_huggingface_checkpoint",
         "get_expected_state_dict",
@@ -275,7 +275,7 @@ import_structure = {
         "ExpConfig",
         "create_pretrained_dataset",
         "run_ernie_pretrain",
-    ]
+    ],
 }
 
 if TYPE_CHECKING:

@@ -1,0 +1,18 @@
+### model
+model_name_or_path: /root/.cache/modelscope/hub/models/PaddlePaddle/ERNIE-4.5-0.3B-PT/
+tensor_model_parallel_size: 1
+output_dir: None
+
+### server
+max_model_len: 131072
+port: 8188
+quantization: wint4
+
+### chat
+max_new_tokens: 8192
+top_p: 0.7
+temperature: 0.95
+
+# device
+device: xpu
+fuse_rms_norm: false

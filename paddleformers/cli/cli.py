@@ -43,8 +43,10 @@ USAGE = (
     "-" * 60
     + "\n"
     + "| Usage:                                                              |\n"
-    + "|   paddleformers-cli train -h: model finetuning                      |\n"
-    + "|   paddleformers-cli export -h: model export                         |\n"
+    + "|   paddleformers-cli train: model finetuning                         |\n"
+    + "|   paddleformers-cli export: model export                            |\n"
+    + "|   paddleformers-cli server: model tuning                            |\n"
+    + "|   paddleformers-cli chat: model chat                                |\n"
     + "|   paddleformers-cli version: show version info                      |\n"
     + "|   paddleformers-cli help: show helping info                         |\n"
     + "-" * 60
@@ -57,12 +59,16 @@ WELCOME = "-" * 60 + "\n" + "Welcome to PaddleFormers Cli" + "\n" + "-" * 60
 def main():
     """cli main process"""
     from . import launcher
+    from .chat.chat import run_chat
+
+    # from .chat.server import run_server
     from .export.export import run_export
     from .train.tuner import run_tuner
 
     COMMAND_MAP = {
         "train": run_tuner,
         "export": run_export,
+        "chat": run_chat,
         "version": partial(print, WELCOME),
         "help": partial(print, USAGE),
     }

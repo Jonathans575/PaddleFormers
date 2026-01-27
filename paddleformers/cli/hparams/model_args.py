@@ -15,6 +15,8 @@
 from dataclasses import dataclass, field
 from typing import List, Optional, Union
 
+from paddleformers.cli.utils.constants import EngineName
+
 
 @dataclass
 class VisionArguments:
@@ -227,6 +229,12 @@ class ModelArguments:
     max_position_embeddings: int = field(default=4096, metadata={"help": "Maximum position embeddings"})
     moe_gate: str = field(default="top2_fused", metadata={"help": "MoE gate type"})
     loss_subbatch_seqlen: int = field(default=32768, metadata={"help": "Sub batch size for loss calculation"})
+
+    # chat
+    infer_backend: EngineName = field(
+        default=EngineName.HF,
+        metadata={"help": "Backend engine used at inference."},
+    )
 
     def __post_init__(self):
         if self.fine_tuning.lower() == "LoRA".lower():

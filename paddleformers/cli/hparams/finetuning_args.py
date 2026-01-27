@@ -164,6 +164,11 @@ class SFTTrainingArguments(TrainingArguments):
         default=1e5,
         metadata={"help": "Maximum number of samples used in estimation."},
     )
+    # server deploy
+    server_tp_degree: int = field(
+        default=1,
+        metadata={"help": "Tensor parallelism degree use for server deploy"},
+    )
 
 
 @dataclass
@@ -329,6 +334,8 @@ class FinetuningArguments(
             self.weight_quantize_algo = {"nf4": DEFAULT_QUANTIZE_LAYERS}
         else:
             raise ValueError(f"Unknown compute_type: {self.compute_type}")
+
+        self.server_tp_degree = self.tensor_model_parallel_size
 
         super().__post_init__()
 

@@ -72,6 +72,7 @@ _EXPORT_CLS = [
 ]
 _SERVER_ARGS = [
     ModelArguments,
+    DataArguments,
     GeneratingArguments,
     FinetuningArguments,
     ServerArguments,
@@ -253,8 +254,8 @@ def get_server_args(args: Optional[Union[dict[str, Any], list[str]]] = None) -> 
     Returns:
         _SERVER_CLS: _description_
     """
-    model_args, generating_args, finetuning_args, server_args = _parse_server_args(args)
-    return model_args, generating_args, finetuning_args, server_args
+    model_args, data_args, generating_args, finetuning_args, server_args = _parse_server_args(args)
+    return model_args, data_args, generating_args, finetuning_args, server_args
 
 
 def get_export_args(args: Optional[Union[dict[str, Any], list[str]]] = None) -> _EXPORT_CLS:

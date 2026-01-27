@@ -300,6 +300,20 @@ class MMPluginMixin:
 
         return mm_inputs
 
+    def process_token_ids(
+        self,
+        input_ids: list[int],
+        labels: Optional[list[int]],
+        images,
+        videos,
+        audios,
+        tokenizer,
+        processor,
+    ) -> tuple[list[int], Optional[list[int]]]:
+        r"""Pre-process token ids after tokenization for VLMs."""
+        self._validate_input(processor, images, videos, audios)
+        return input_ids, labels
+
 
 @dataclass
 class BasePlugin(MMPluginMixin):

@@ -5038,7 +5038,9 @@ class Trainer:
         return remove_columns_collator
 
     def _is_iterable_dataset(self, dataset):
-        return isinstance(dataset, paddle.io.IterableDataset)
+        from datasets import IterableDataset as HfIterableDataset
+
+        return isinstance(dataset, paddle.io.IterableDataset) or isinstance(dataset, HfIterableDataset)
 
     def _is_iterable_dataset_distributed(self, dataset):
         # For distributed dataloaer.

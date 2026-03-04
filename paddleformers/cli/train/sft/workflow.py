@@ -14,6 +14,7 @@
 
 """Training Ernie Model."""
 
+import contextlib
 import gc
 import math
 import os
@@ -32,7 +33,8 @@ from paddleformers.data.indexed_dataset import SFTMMapIndexedDatasetBuilder
 from paddleformers.datasets.collate import collate_fn, mm_collate_fn
 from paddleformers.datasets.data_utils import estimate_training
 from paddleformers.datasets.loader import create_dataset as create_dataset_sft
-from paddleformers.datasets.loader import create_indexed_dataset
+
+# from paddleformers.datasets.loader import create_indexed_dataset
 from paddleformers.datasets.SFTDataset import TextSequence
 from paddleformers.datasets.template.template import get_template_and_fix_tokenizer
 from paddleformers.nn.attention import AttentionInterface
@@ -83,6 +85,48 @@ from paddleformers.cli.utils import (
     get_lora_target_modules,
     get_multimodel_lora_target_modules,
 )
+
+
+def preprocess_function(examples):
+    """
+    Preprocess a training example to be fed into a transformer.
+    """
+    num_examples = len(examples["messages"])
+    result = {"input_ids": [], "labels": [], "position_ids": []}
+    tokenizer = AutoTokenizer.from_pretrained("models/Qwen3-0.6B-base")
+    for idx in range(num_examples):
+        query = examples["messages"][idx][0]["content"]
+        answer = examples["messages"][idx][1]["content"]
+        input_ids = tokenizer.tokenize(query) + tokenizer.tokenize(answer)
+        input_ids = tokenizer.convert_tokens_to_ids(input_ids)
+        labels = input_ids[1:] + [tokenizer.eos_token_id]
+        position_ids = list(range(len(input_ids)))
+        result["input_ids"].append(input_ids)
+        result["labels"].append(labels)
+        result["position_ids"].append(position_ids)
+    return result
+
+
+@contextlib.contextmanager
+def main_process_first(desc="work"):
+    if paddle.distributed.get_world_size() > 1:
+        rank = paddle.distributed.get_rank()
+        is_main_process = rank == 0
+        main_process_desc = "main local process"
+
+        try:
+            if not is_main_process:
+                # tell all replicas to wait
+                logger.debug(f"{rank}: waiting for the {main_process_desc} to perform {desc}")
+                paddle.distributed.barrier()
+            yield
+        finally:
+            if is_main_process:
+                # the wait is over
+                logger.debug(f"{rank}: {main_process_desc} completed {desc}, releasing all replicas")
+                paddle.distributed.barrier()
+    else:
+        yield
 
 
 def create_pretrained_dataset(training_args, data_args, model_args):
@@ -525,33 +569,58 @@ def run_sft(
         logger.info("Make SFT Offline DataSet Done.")
         return
 
-    if data_args.dataset_type == "pretrain":
-        training_args.test_iters = training_args.eval_iters * 10
-        train_dataset, eval_dataset, test_dataset, data_collator = create_pretrained_dataset(
-            training_args, data_args, model_args
+    # if data_args.dataset_type == "pretrain":
+    #     training_args.test_iters = training_args.eval_iters * 10
+    #     train_dataset, eval_dataset, test_dataset, data_collator = create_pretrained_dataset(
+    #         training_args, data_args, model_args
+    #     )
+    # elif data_args.dataset_type == "offline":
+    #     train_file_path = os.path.join(data_args.input_dir, "train")
+    #     train_dataset = create_indexed_dataset(data_file_prefix=train_file_path)
+    #     if training_args.do_eval:
+    #         eval_file_path = os.path.join(data_args.input_dir, "eval")
+    #         eval_dataset = create_indexed_dataset(data_file_prefix=eval_file_path)
+    # else:
+    #     if training_args.should_load_dataset:
+    #         train_dataset = create_dataset_sft(
+    #             task_group=data_args.train_dataset_path,
+    #             task_group_prob=data_args.train_dataset_prob,
+    #             sub_dataset_type=data_args.train_dataset_type,
+    #             **dataset_config,
+    #         )
+    #     if training_args.do_eval and training_args.should_load_dataset:
+    #         eval_dataset = create_dataset_sft(
+    #             task_group=data_args.eval_dataset_path,
+    #             task_group_prob=data_args.eval_dataset_prob,
+    #             sub_dataset_type=data_args.eval_dataset_type,
+    #             is_valid=True,
+    #             **dataset_config,
+    #         )
+
+    from datasets import load_dataset as hf_load_dataset
+
+    dataset_path = data_args.train_dataset_path
+    ext = os.path.splitext(dataset_path)[1].lstrip(".")
+    file_type = {"jsonl": "json", "txt": "text"}.get(ext) or ext
+    kwargs = {"split": "train", "streaming": True}
+    # kwargs['cache_dir'] = os.path.join(get_cache_dir(), 'datasets')
+    train_dataset = hf_load_dataset(file_type, data_files=dataset_path, **kwargs)
+
+    with main_process_first(desc="train dataset map pre-processing"):
+        train_dataset = train_dataset.map(
+            preprocess_function,
+            batched=True,
+            batch_size=1,
         )
-    elif data_args.dataset_type == "offline":
-        train_file_path = os.path.join(data_args.input_dir, "train")
-        train_dataset = create_indexed_dataset(data_file_prefix=train_file_path)
-        if training_args.do_eval:
-            eval_file_path = os.path.join(data_args.input_dir, "eval")
-            eval_dataset = create_indexed_dataset(data_file_prefix=eval_file_path)
-    else:
-        if training_args.should_load_dataset:
-            train_dataset = create_dataset_sft(
-                task_group=data_args.train_dataset_path,
-                task_group_prob=data_args.train_dataset_prob,
-                sub_dataset_type=data_args.train_dataset_type,
-                **dataset_config,
-            )
-        if training_args.do_eval and training_args.should_load_dataset:
-            eval_dataset = create_dataset_sft(
-                task_group=data_args.eval_dataset_path,
-                task_group_prob=data_args.eval_dataset_prob,
-                sub_dataset_type=data_args.eval_dataset_type,
-                is_valid=True,
-                **dataset_config,
-            )
+
+    # train_batch_sampler = paddle.io.DistributedBatchSampler(train_ds, batch_size=args.batch_size, shuffle=True)
+    # train_data_loader = paddle.io.DataLoader(
+    #     dataset=train_ds,
+    #     batch_sampler=train_batch_sampler,
+    #     collate_fn=batchify_fn,
+    #     num_workers=0,
+    #     return_list=True,
+    # )
 
     # Freeze model based on training args (Supports for MLLM Full training)
     if not model_args.lora and getattr(training_args, "freeze_config", ""):
@@ -664,7 +733,7 @@ def run_sft(
         model=model,
         args=training_args,
         train_dataset=(train_dataset if training_args.do_train and training_args.should_load_dataset else None),
-        eval_dataset=(eval_dataset if training_args.do_eval and training_args.should_load_dataset else None),
+        eval_dataset=None,
         tokenizer=tokenizer,
         processing_class=processor,
         data_collator=data_collator,

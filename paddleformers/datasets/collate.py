@@ -439,13 +439,12 @@ def mm_dpo_collate_fn(
     return input_dict
 
 
-def collate_fn(
-    batch: List[List[Sequence]], tokenizer, training_args, model_args, max_seq_len: int, padding_free: bool
-):
+def collate_fn(batch: List[dict], tokenizer, training_args, model_args, max_seq_len: int, padding_free: bool):
     """Convert batch of sequences into training tensors.
 
     Args:
-        batch (List[List[Sequence]]): Batch of input sequences
+        batch (List[dict]): Batch of input dicts, each containing
+            'input_ids', 'labels', 'position_ids' as lists of ints.
         tokenizer: Tokenizer for text conversion
         model_args: Model configuration parameters
         max_seq_len (int): Maximum sequence length for padding
@@ -464,27 +463,38 @@ def collate_fn(
     else:
         input_keys.append("attention_mask")
     return_list = []
+
     if padding_free:
-        batch = [sum(batch, [])]
-        max_seq_len = sum(len(item.token_ids) for sequence in batch for item in sequence)
+        all_original_position_ids = [item["position_ids"] for item in batch]
+        merged = {
+            "input_ids": sum([item["input_ids"] for item in batch], []),
+            "labels": sum([item["labels"] for item in batch], []),
+            "position_ids": sum([item["position_ids"] for item in batch], []),
+            "_original_position_ids": all_original_position_ids,
+        }
+        batch = [merged]
+        max_seq_len = len(merged["input_ids"])
+
     if not max_seq_len:
-        max_seq_len = max(sum(len(item.token_ids) for item in sequence) for sequence in batch)
+        max_seq_len = max(len(item["input_ids"]) for item in batch)
     max_seq_len = calc_padding_size(max_seq_len, training_args)
     if training_args.num_nextn_predict_layers > 0:
         max_seq_len += training_args.num_nextn_predict_layers
 
-    for batch_sequence in batch:
-        if len(batch_sequence) == 1 and isinstance(batch_sequence[0].position_ids[0], List):
-            original_position_ids = batch_sequence[0].position_ids
+    for item in batch:
+        token_ids = item["input_ids"]
+        labels = item["labels"]
+        position_ids = item["position_ids"]
+
+        if "_original_position_ids" in item:
+            original_position_ids = item["_original_position_ids"]
         else:
-            original_position_ids = [seq.position_ids for seq in batch_sequence]
-        token_ids = [sum([seq.token_ids for seq in batch_sequence], [])]
-        labels = [sum([seq.labels for seq in batch_sequence], [])]
-        position_ids = [sum(original_position_ids, [])]
+            original_position_ids = [position_ids]
+
         # padding
-        padded_token_ids = pad_batch_data(token_ids, pad_idx=tokenizer.pad_token_id, max_seq_len=max_seq_len)
-        padded_labels = pad_batch_data(labels, pad_idx=-100, max_seq_len=max_seq_len)
-        padded_position_ids = pad_batch_data(position_ids, pad_idx=0, max_seq_len=max_seq_len)
+        padded_token_ids = pad_batch_data([token_ids], pad_idx=tokenizer.pad_token_id, max_seq_len=max_seq_len)
+        padded_labels = pad_batch_data([labels], pad_idx=-100, max_seq_len=max_seq_len)
+        padded_position_ids = pad_batch_data([position_ids], pad_idx=0, max_seq_len=max_seq_len)
         return_list.append(
             [
                 padded_token_ids,
